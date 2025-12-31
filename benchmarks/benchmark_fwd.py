@@ -32,40 +32,17 @@ def _run_bhnd_flash_fwd(q, k, v):
 
                     def run_current_config():
                         fwd_kernel[grid](
-                            q,
-                            k,
-                            v,
+                            q, k, v,
                             sm_scale,
-                            o,
-                            l_save,
-                            q.stride(0),
-                            q.stride(1),
-                            q.stride(2),
-                            q.stride(3),
-                            k.stride(0),
-                            k.stride(1),
-                            k.stride(2),
-                            k.stride(3),
-                            v.stride(0),
-                            v.stride(1),
-                            v.stride(2),
-                            v.stride(3),
-                            o.stride(0),
-                            o.stride(1),
-                            o.stride(2),
-                            o.stride(3),
-                            l_save.stride(0),
-                            l_save.stride(1),
-                            l_save.stride(2),
-                            BATCH,
-                            HEADS,
-                            N_CTX,
-                            D_HEAD,
-                            BLOCK_M=BM,
-                            BLOCK_N=BN,
-                            BLOCK_D=BLOCK_D,
-                            num_warps=NW,
-                            num_stages=NS,
+                            o, l_save,
+                            q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+                            k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+                            v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+                            o.stride(0), o.stride(1), o.stride(2), o.stride(3),
+                            l_save.stride(0), l_save.stride(1), l_save.stride(2),
+                            BATCH, HEADS, N_CTX, D_HEAD,
+                            BLOCK_M=BM, BLOCK_N=BN, BLOCK_D=BLOCK_D,
+                            num_warps=NW, num_stages=NS,
                         )
 
                     try:
@@ -89,23 +66,13 @@ def benchmark():
 
     # Format: (BATCH, HEADS, N_CTX, D_HEAD)
     configs = [
-        (4, 8, 1024, 64),  # Short sequence
-        (4, 8, 4096, 64),  # Longer sequsdpa_kernelence
-        (1, 8, 8192, 64),  # Very long sequence
-        (8, 16, 512, 64),  # High batch/heads, short sequence (Memory bound test)
-        (
-            2,
-            8,
-            512,
-            128,
-        ),  # Larger Head Dimension, smaller Sequence length (Check register pressure)
+        (4, 8, 1024, 64),   # Short sequence
+        (4, 8, 4096, 64),   # Longer sequsdpa_kernelence
+        (1, 8, 8192, 64),   # Very long sequence
+        (8, 16, 512, 64),   # High batch/heads, short sequence (Memory bound test)
+        (2, 8, 512, 128),   # Larger Head Dimension, smaller Sequence length (Check register pressure)
         (2, 8, 1024, 128),  # Larger Head Dimension (Check register pressure)
-        (
-            2,
-            8,
-            2048,
-            128,
-        ),  # Larger Head Dimension and Sequence length (Check extreme register pressure)
+        (2, 8, 2048, 128),  # Larger Head Dimension and Sequence length (Check extreme register pressure)
     ]
 
     results = []
@@ -162,13 +129,7 @@ def benchmark():
             [cfg_str, "PyTorch (Default)", ms_torch_def, tflops_torch_def, 1.0]
         )
         results.append(
-            [
-                cfg_str,
-                "PyTorch (Opt)",
-                ms_torch_opt,
-                tflops_torch_opt,
-                ms_torch_def / ms_torch_opt,
-            ]
+            [cfg_str, "PyTorch (Opt)", ms_torch_opt, tflops_torch_opt, ms_torch_def / ms_torch_opt,]
         )
         results.append(
             [cfg_str, "Your Triton", ms_triton, tflops_triton, ms_torch_def / ms_triton]

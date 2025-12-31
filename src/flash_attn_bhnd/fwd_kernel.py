@@ -4,35 +4,15 @@ import triton.language as tl
 
 @triton.jit
 def fwd_kernel(
-    Q_ptr,
-    K_ptr,
-    V_ptr,
+    Q_ptr, K_ptr, V_ptr,
     Sm_scale,
-    Out_ptr,
-    L_ptr,
-    stride_qz,
-    stride_qh,
-    stride_qm,
-    stride_qd,  # Strides for Query
-    stride_kz,
-    stride_kh,
-    stride_km,
-    stride_kd,  # Strides for Key
-    stride_vz,
-    stride_vh,
-    stride_vm,
-    stride_vd,  # Strides for Value
-    stride_oz,
-    stride_oh,
-    stride_om,
-    stride_od,  # Strides for Output
-    stride_lz,
-    stride_lh,
-    stride_lm,  # Strides for saving L values
-    Z,
-    H,
-    N_CTX,
-    D,  # Batch, Heads, Context Length
+    Out_ptr, L_ptr,
+    stride_qz, stride_qh, stride_qm, stride_qd,  # Strides for Query
+    stride_kz, stride_kh, stride_km, stride_kd,  # Strides for Key
+    stride_vz, stride_vh, stride_vm, stride_vd,  # Strides for Value
+    stride_oz, stride_oh, stride_om, stride_od,  # Strides for Output
+    stride_lz, stride_lh, stride_lm,             # Strides for saving L values
+    Z, H, N_CTX, D,                              # Batch, Heads, Context Length
     BLOCK_M: tl.constexpr,  # Block size for Queries (Rows)
     BLOCK_N: tl.constexpr,  # Block size for Keys and Values (Cols in transposed)
     BLOCK_D: tl.constexpr,  # Block size for columns
@@ -48,8 +28,8 @@ def fwd_kernel(
     Out_ptr += pid_z * stride_oz + pid_h * stride_oh
     L_ptr += pid_z * stride_lz + pid_h * stride_lh
 
-    cols_offset = tl.arange(0, BLOCK_D)  # Used for all matrices
-    cols_mask = cols_offset < D  # Used for all matrices
+    cols_offset = tl.arange(0, BLOCK_D)      # Used for all matrices
+    cols_mask = cols_offset < D              # Used for all matrices
 
     rows_offset_Q = tl.arange(0, BLOCK_M) + pid_m * BLOCK_M
     rows_mask_Q = rows_offset_Q < N_CTX
