@@ -2,12 +2,12 @@
 
 ##  Introduction
 
-This repository contains a custom **Flash Attention** forward pass implementation written in **OpenAI Triton**. 
+This repository contains a custom **Flash Attention** forward pass implementation written in OpenAI Triton. 
 
 Unlike standard PyTorch implementations that often optimize for `(Batch, Sequence, Heads, Dim)` or require reshaping, this kernel is natively optimized for the **BHND** memory layout:
-$$ (\text{Batch}, \text{Heads}, \text{Sequence}, \text{Dim}) $$
+`(Batch, Heads, Sequence, Dim)`
 
-This layout is the natural output of many Multi-Head Attention implementations in PyTorch (e.g., Vision Transformers, MoE) before the `transpose` operation. By calculating attention directly on BHND, we avoid the **"Transpose Tax"**—the memory overhead and latency cost of permuting dimensions to make tensors contiguous.
+This layout is the natural output of many Multi-Head Attention implementations in PyTorch (e.g., Vision Transformers, MoE) before the `transpose` operation. By calculating attention directly on BHND, we avoid the "Transpose Tax" which is the memory overhead and latency cost of permuting dimensions to make tensors contiguous.
 
 ---
 
@@ -21,10 +21,10 @@ This layout is the natural output of many Multi-Head Attention implementations i
 For sequences where the computation is not completely compute-bound, the overhead of memory permutation in PyTorch becomes visible.
 
 | Configuration $(B, H, N, D)$ | Seq Length | Speedup vs PyTorch Default |                         Notes                           |
-| :----------------------------| :--------- | :------------------------- | :------------------------------------------------------ |
-|      `(4, 8, 1024, 64)`      |    1024    |     **~1.15x Faster**      | Removes `transpose(1, 2)` overhead                      |
-|      `(8, 16, 512, 64)`      |    512     |     **~1.17x Faster**      | High batch/head count benefits significantly            |
-|      `(1, 8, 8192, 64)`      |    8192    |      **0.3x Slower**       | Long sequences require L2 cache swizzling               |
+| :--| :--| :--| :--|
+|`(4, 8, 1024, 64)`|1024|**~1.15x Faster**|Removes `transpose(1, 2)` overhead|
+|`(8, 16, 512, 64)`|512|**~1.17x Faster**|High batch/head count benefits significantly|
+|`(1, 8, 8192, 64)`|8192|**0.3x Slower**|Long sequences require L2 cache swizzling|
 
 **Conclusion:**  
 This kernel is highly effective for **small to medium sequence lengths** (common in ViT, Image processing, and standard Transformer layers) where the cost of reshaping memory dominates the actual matrix multiplication time. Also the projects where LLMs are needed on consumer level hardware like RAG systems can benefit from this kernel.
@@ -42,12 +42,16 @@ This kernel is highly effective for **small to medium sequence lengths** (common
 
 ### Running Tests
 To run the verification script (validates numerical accuracy against PyTorch):
-bash
+
+```bash
 PYTHONPATH=. python test_correctness_fwd.py
+```
 
 To run the performance benchmarks:
-bash
+
+```bash
 PYTHONPATH=. python benchmark_fwd.py
+```
 
 ---
 
@@ -57,14 +61,17 @@ Many Triton tutorials show code but don't explain the *strategy*. Here is exactl
 
 ### 1. The Memory Layout (BHND)
 Standard Flash Attention implementations usually expect `(Batch, Seq, Heads, Dim)`. To use them, PyTorch performs:
-python
+
+```python
 # PyTorch internal logic
 q = q.transpose(1, 2).contiguous() # Costly memory copy!
 flash_attn_func(q, ...)
+```
+
 Our kernel iterates directly over the `(Batch, Heads)` dimensions as the primary grid axis, meaning we read data exactly as it sits in memory for BHND tensors. No copies, no reshapes.
 
 ### 2. Tiling Strategy & Loop Order
-The kernel solves the $O(N^2)$ memory bottleneck of Attention using **Tiling** and **Online Softmax**.
+The kernel solves the $O(N^2)$ memory bottleneck of Attention using Tiling and Online Softmax.
 
 1.  **Grid Launch:** We launch a 2D grid of programs.
 *   Axis 0 handles the `M` dimension (Sequence Length of Queries), split into blocks of size `BLOCK_M`.
@@ -73,7 +80,7 @@ The kernel solves the $O(N^2)$ memory bottleneck of Attention using **Tiling** a
 3.  **Inner Loop (Keys/Values):** We iterate through the Key ($K$) and Value ($V$) matrices in blocks of size `[BLOCK_N, D]`.
 *   We compute $S = Q \cdot K^T$
 *   We update the running maximum ($m_i$) and running sum ($l_i$) for Softmax.
-*   We compute the partial output $O = O + \text{softmax}(S) \cdot V$ using the **online rescaling trick** to ensure numerical stability.
+*   We compute the partial output $O = O + \text{softmax}(S) \cdot V$ using the online rescaling trick to ensure numerical stability.
 
 ### 3. Optimization Details
 *   **Pointers & Strides:** We calculate memory offsets manually using strides (`stride_qm`, `stride_qh`, etc.). This allows the kernel to be agnostic to the physical memory layout, provided the strides are correct.
