@@ -1,8 +1,17 @@
-# .gitignore
+#.gitignore
+
 __pycache__/
 *.pyc
-.pytest_cache/
+*.egg-info/
 dist/
 build/
-*.egg-info/
-.env
+eggs/
+.eggs/
+
+
+.vscode/
+.idea/
+
+.venv/
+env/
+venv/
