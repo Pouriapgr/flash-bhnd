@@ -1,7 +1,6 @@
 import triton
 import triton.language as tl
 
-
 @triton.jit
 def fwd_kernel(
     Q_ptr, K_ptr, V_ptr,
@@ -17,6 +16,38 @@ def fwd_kernel(
     BLOCK_N: tl.constexpr,  # Block size for Keys and Values (Cols in transposed)
     BLOCK_D: tl.constexpr,  # Block size for columns
 ):
+    """
+    Triton kernel for the forward pass of Flash Attention, optimized for BHND layout.
+
+    This kernel implements the IO-aware exact attention algorithm (FlashAttention).
+    It computes Attention(Q, K, V) = Softmax(Q @ K.T / sqrt(D)) @ V using
+    tiling to keep intermediate matrices (Q blocks) in SRAM, reducing global memory access.
+
+    Algorithm:
+        The kernel uses the 'Online Softmax' trick to compute the softmax normalization
+        factors (L_i) and maximums (M_i) iteratively without materializing the full
+        NxN attention matrix.
+
+    Grid Structure:
+        - Axis 0 (pid_m): Handles the sequence length (N) dimension, split into tiles of size BLOCK_M.
+        - Axis 1 (pid_z * pid_h): Handles the batch (Z) and heads (H) dimensions.
+
+    Args:
+        Q_ptr, K_ptr, V_ptr: Pointers to input tensors.
+        Sm_scale (float): Scaling factor, usually 1 / sqrt(D_HEAD).
+        Out_ptr: Pointer to the output tensor buffer.
+        L_ptr: Pointer to the buffer for storing LogSumExp values (needed for backward pass).
+        stride_*: Strides for all input/output tensors. Crucial for handling BHND layout
+                  correctly without reshaping.
+        Z (int): Batch size.
+        H (int): Number of heads.
+        N_CTX (int): Sequence length (Context size).
+        D (int): Head dimension.
+        BLOCK_M (constexpr): Tile size for the Query sequence dimension (rows of attention matrix).
+                             Larger values improve arithmetic intensity but require more SRAM.
+        BLOCK_N (constexpr): Tile size for the Key/Value sequence dimension (cols of attention matrix).
+        BLOCK_D (constexpr): Tile size for the head dimension. Must be a power of 2.
+    """
 
     pid_z = tl.program_id(axis=1) % Z
     pid_h = tl.program_id(axis=1) // Z

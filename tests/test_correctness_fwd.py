@@ -2,8 +2,25 @@ import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
 from flash_attn_bhnd import run_bhnd_flash_fwd
 
-
 def test_fwd_correctness(B, H, N, D):
+    """
+        Verifies the numerical correctness of the custom BHND Flash Attention kernel
+        by comparing it against PyTorch's native implementation.
+
+        This test generates random inputs in FP16, runs both the custom kernel and
+        `torch.nn.functional.scaled_dot_product_attention` (using the Flash Attention backend),
+        and checks if the outputs match within a specific tolerance.
+
+        Args:
+            B (int): Batch size.
+            H (int): Number of attention heads.
+            N (int): Sequence length (context size).
+            D (int): Head dimension.
+
+        Returns:
+            None: The function prints "✅ Triton and Torch match" or
+                "❌ Triton and Torch differ" directly to stdout.
+    """
 
     dtype = torch.float16
     q = torch.randn((B, H, N, D), dtype=dtype, device="cuda", requires_grad=False)

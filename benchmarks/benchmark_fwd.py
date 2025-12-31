@@ -5,6 +5,33 @@ from flash_attn_bhnd import fwd_kernel
 
 
 def _run_bhnd_flash_fwd(q, k, v):
+    """
+    Executes the custom Triton BHND Flash Attention kernel with an internal
+    grid search to find the optimal block configuration for the given input shape.
+
+    This function iterates through a predefined list of block sizes (BLOCK_M, BLOCK_N),
+    warp counts, and pipeline stages. It benchmarks each valid configuration
+    and selects the one with the lowest latency.
+
+    Args:
+        q (torch.Tensor): Query tensor with shape (Batch, Heads, N_ctx, D_head).
+                          Must be in BHND layout.
+        k (torch.Tensor): Key tensor with shape (Batch, Heads, N_ctx, D_head).
+                          Must be in BHND layout.
+        v (torch.Tensor): Value tensor with shape (Batch, Heads, N_ctx, D_head).
+                          Must be in BHND layout.
+
+    Returns:
+        tuple: A tuple containing:
+            - best_ms (float): The execution time in milliseconds of the best configuration.
+            - best_config (str): A string description of the optimal hyperparameters
+                                 (BLOCK_M, BLOCK_N, NUM_WARPS, NUM_STAGES).
+            - o (torch.Tensor): The output tensor of the attention mechanism,
+                                shape (Batch, Heads, N_ctx, D_head).
+
+    Raises:
+        AssertionError: If the input tensors do not share the same B, H, N, D dimensions.
+    """
 
     BATCH, HEADS, N_CTX, D_HEAD = q.shape
     assert q.shape[0] == k.shape[0] == v.shape[0] == BATCH
@@ -63,7 +90,27 @@ def _run_bhnd_flash_fwd(q, k, v):
 
 
 def benchmark():
+    """
+    Runs a comparative performance benchmark between PyTorch's native SDPA and
+    the custom Triton BHND Flash Attention kernel.
 
+    The benchmark tests three implementations across various (B, H, N, D) configurations:
+    1. PyTorch Default: Calling SDPA on the raw BHND input (incurs implicit internal transpose).
+    2. PyTorch Optimized: Calling SDPA on manually transposed (BSHD) contiguous input.
+    3. Custom Triton: The custom BHND-optimized kernel.
+
+    Metrics collected:
+        - Execution time (ms)
+        - Throughput (TFLOPS)
+        - Speedup relative to the PyTorch Default baseline.
+
+    The function prints a formatted table of results to stdout.
+
+    Returns:
+        list: A list of results, where each entry is a list containing:
+              [Config String, Provider Name, Time(ms), TFLOPS, Speedup].
+    """
+    
     # Format: (BATCH, HEADS, N_CTX, D_HEAD)
     configs = [
         (4, 8, 1024, 64),   # Short sequence

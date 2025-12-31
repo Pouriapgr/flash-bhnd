@@ -2,10 +2,33 @@ import triton
 import torch
 from .fwd_kernel import fwd_kernel
 
-
-# 64 32 4 3
 def run_bhnd_flash_fwd(q, k, v):
+    """
+    Entry point for the custom Triton Flash Attention Forward Kernel (BHND layout).
 
+    This function sets up the grid, calculates the scaling factor, allocates
+    necessary output buffers, and launches the compiled Triton kernel.
+    It is specifically optimized for input tensors in the (Batch, Heads, N_Ctx, D_Head)
+    memory layout, avoiding the need for transposing typically required by
+    standard PyTorch attention implementations (which prefer BSHD).
+
+    Args:
+        q (torch.Tensor): Query tensor of shape (Batch, Heads, N_Ctx, D_Head).
+        k (torch.Tensor): Key tensor of shape (Batch, Heads, N_Ctx, D_Head).
+        v (torch.Tensor): Value tensor of shape (Batch, Heads, N_Ctx, D_Head).
+
+    Returns:
+        tuple: A tuple containing:
+            - o (torch.Tensor): Output attention values, same shape and dtype as `q`.
+            - l_save (torch.Tensor): LogSumExp values of shape (Batch, Heads, N_Ctx).
+              Stored in fp32, required for the backward pass gradient computation.
+
+    Note:
+        - This implementation uses a fixed configuration (Block_M=64, Block_N=32,
+          Warps=4, Stages=3) tuned for general performance on this specific kernel logic.
+        - The scaling factor is automatically set to 1 / sqrt(D_Head).
+    """
+    
     BATCH, HEADS, N_CTX, D_HEAD = q.shape
 
     assert q.shape[0] == k.shape[0] == v.shape[0] == BATCH
