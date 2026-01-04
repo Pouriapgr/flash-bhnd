@@ -26,6 +26,7 @@ def run_bhnd_flash_fwd(q, k, v):
     Note:
         - This implementation uses a fixed configuration (Block_M=64, Block_N=32,
           Warps=4, Stages=3) tuned for general performance on this specific kernel logic.
+          The configuration has showed to have grreat potential for smaller context lengths.
         - The scaling factor is automatically set to 1 / sqrt(D_Head).
     """
     

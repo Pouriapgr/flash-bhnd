@@ -95,7 +95,7 @@ def benchmark():
     the custom Triton BHND Flash Attention kernel.
 
     The benchmark tests three implementations across various (B, H, N, D) configurations:
-    1. PyTorch Default: Calling SDPA on the raw BHND input (incurs implicit internal transpose).
+    1. PyTorch Default: Calling SDPA on the raw BHND input (includes transpose tax).
     2. PyTorch Optimized: Calling SDPA on manually transposed (BSHD) contiguous input.
     3. Custom Triton: The custom BHND-optimized kernel.
 
@@ -114,7 +114,7 @@ def benchmark():
     # Format: (BATCH, HEADS, N_CTX, D_HEAD)
     configs = [
         (4, 8, 1024, 64),   # Short sequence
-        (4, 8, 4096, 64),   # Longer sequsdpa_kernelence
+        (4, 8, 4096, 64),   # Longer sequence length
         (1, 8, 8192, 64),   # Very long sequence
         (8, 16, 512, 64),   # High batch/heads, short sequence (Memory bound test)
         (2, 8, 512, 128),   # Larger Head Dimension, smaller Sequence length (Check register pressure)
