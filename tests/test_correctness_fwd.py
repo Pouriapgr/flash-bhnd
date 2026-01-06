@@ -4,7 +4,7 @@ from flash_attn_bhnd import run_bhnd_flash_fwd
 
 def test_fwd_correctness(B, H, N, D):
     """
-        Verifies the numerical correctness of the custom BHND Flash Attention kernel
+        Verifies the numerical correctness of the custom BHND Flash Attention forward kernel
         by comparing it against PyTorch's native implementation.
 
         This test generates random inputs in FP16, runs both the custom kernel and
